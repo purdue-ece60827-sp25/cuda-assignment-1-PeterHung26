@@ -86,4 +86,9 @@
 	extern double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize, 
 		uint64_t reduceThreadCount, uint64_t reduceSize);
 
+	/**
+	 * @brief print out GPU information
+	 * @return int success or failure status
+	 */
+	extern int device_prop();
 #endif

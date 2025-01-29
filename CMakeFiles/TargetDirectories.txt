@@ -1,0 +1,7 @@
+/home/hong395/cuda-assignment-1-PeterHung26/CMakeFiles/lab1.dir
+/home/hong395/cuda-assignment-1-PeterHung26/CMakeFiles/edit_cache.dir
+/home/hong395/cuda-assignment-1-PeterHung26/CMakeFiles/rebuild_cache.dir
+/home/hong395/cuda-assignment-1-PeterHung26/src/CMakeFiles/cudaLib.dir
+/home/hong395/cuda-assignment-1-PeterHung26/src/CMakeFiles/cpuLib.dir
+/home/hong395/cuda-assignment-1-PeterHung26/src/CMakeFiles/edit_cache.dir
+/home/hong395/cuda-assignment-1-PeterHung26/src/CMakeFiles/rebuild_cache.dir

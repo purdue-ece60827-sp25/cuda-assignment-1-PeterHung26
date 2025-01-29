@@ -1,5 +1,8 @@
 
 #include "cudaLib.cuh"
+#include "cpuLib.h"
+#include <cuda_runtime.h>
+#include <stdio.h>
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
 {
@@ -13,6 +16,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
 __global__ 
 void saxpy_gpu (float* x, float* y, float scale, int size) {
 	//	Insert GPU SAXPY kernel code here
+	int idx = threadIdx.x + blockDim.x * blockIdx.x;
+	if(idx < size)
+		y[idx] = scale * x[idx] + y[idx];
 }
 
 int runGpuSaxpy(int vectorSize) {
@@ -22,7 +28,37 @@ int runGpuSaxpy(int vectorSize) {
 	//	Insert code here
 	std::cout << "Lazy, you are!\n";
 	std::cout << "Write code, you must\n";
-
+	// device_prop();
+	int vectorByte = vectorSize * sizeof(float);
+	// Set up the thread block
+	dim3 DimGrid(ceil(vectorSize/256.0),1,1);
+	dim3 DimBlock(256, 1, 1);
+	// Memory Allocation
+	// Variable on host (for the verification)
+	float * x, * y, * veri,  scale;
+	x = (float *) malloc(vectorByte);
+	y = (float *) malloc(vectorByte);
+	veri = (float *) malloc(vectorByte);
+	float * x_d, * y_d;
+	cudaMalloc((void **) &x_d, vectorByte);
+	cudaMalloc((void **) &y_d, vectorByte);
+	scale = 2.0f;
+	vectorInit(x, vectorSize);
+	vectorInit(y, vectorSize);
+	cudaMemcpy(x_d, x, vectorByte, cudaMemcpyHostToDevice);
+	cudaMemcpy(y_d, y, vectorByte, cudaMemcpyHostToDevice);
+	// Kernel invocation code
+	saxpy_gpu<<<DimGrid, DimBlock>>>(x_d, y_d, scale, vectorSize);
+	// Check the result with CPU
+	cudaMemcpy(veri, y_d, vectorByte, cudaMemcpyDeviceToHost);
+	int errorCount = verifyVector(x, y, veri, scale, vectorSize);
+	std::cout << "Found " << errorCount << " / " << vectorSize << " errors \n";
+	// Free the host and device memory
+	free(x);
+	free(y);
+	free(veri);
+	cudaFree(x_d);
+	cudaFree(y_d);
 	return 0;
 }
 
@@ -83,4 +119,37 @@ double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize,
 	std::cout << "Sneaky, you are ...\n";
 	std::cout << "Compute pi, you must!\n";
 	return approxPi;
+}
+
+// Remeber to hide it before submission
+int device_prop(){
+	cudaDeviceProp prop;
+    int device;
+    cudaError_t err = cudaGetDevice(&device);
+	if (err != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+        return -1;
+    }
+    cudaGetDeviceProperties(&prop, device);
+
+	int maxActiveBlocks;
+    int blockSize = 128;  // Example block size (you can vary this)
+    size_t sharedMemoryPerBlock = 0; // Default shared memory usage
+
+    // Get maximum active blocks per SM
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &maxActiveBlocks, saxpy_gpu, blockSize, sharedMemoryPerBlock
+    );
+
+    int totalThreadsPerSM = maxActiveBlocks * blockSize;
+    float occupancy = (float)totalThreadsPerSM / prop.maxThreadsPerMultiProcessor * 100.0f;
+
+    printf("Device Name: %s\n", prop.name);
+    printf("Number of SMs: %d\n", prop.multiProcessorCount);
+    printf("Max Active Blocks per SM: %d\n", maxActiveBlocks);
+    printf("Total Threads per SM: %d\n", totalThreadsPerSM);
+    printf("Max Threads per SM: %d\n", prop.maxThreadsPerMultiProcessor);
+    printf("Occupancy: %.2f%%\n", occupancy);
+
+    return 0;
 }
