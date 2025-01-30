@@ -2,6 +2,7 @@
 #include "cudaLib.cuh"
 #include "cpuLib.h"
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
 #include <stdio.h>
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
@@ -28,13 +29,12 @@ int runGpuSaxpy(int vectorSize) {
 	//	Insert code here
 	std::cout << "Lazy, you are!\n";
 	std::cout << "Write code, you must\n";
-	// device_prop();
+	device_prop();
 	int vectorByte = vectorSize * sizeof(float);
 	// Set up the thread block
-	dim3 DimGrid(ceil(vectorSize/256.0),1,1);
-	dim3 DimBlock(256, 1, 1);
-	// Memory Allocation
-	// Variable on host (for the verification)
+	dim3 DimGrid(ceil(vectorSize/128.0),1,1);
+	dim3 DimBlock(128, 1, 1);
+	// Memory Allocation and Variable on host (for the verification)
 	float * x, * y, * veri,  scale;
 	x = (float *) malloc(vectorByte);
 	y = (float *) malloc(vectorByte);
@@ -77,11 +77,37 @@ int runGpuSaxpy(int vectorSize) {
 __global__
 void generatePoints (uint64_t * pSums, uint64_t pSumSize, uint64_t sampleSize) {
 	//	Insert code here
+	int idx = threadIdx.x + blockDim.x * blockIdx.x;
+	float x, y;
+	if(idx < pSumSize){
+		pSums[idx] = 0;
+		// Setup RNG
+		curandState_t rng;
+		curand_init(clock64(), idx, 0, &rng);
+		for (uint64_t i = 0; i < sampleSize; ++i) {
+			// Generate random points
+			x = curand_uniform(&rng);
+			y = curand_uniform(&rng);
+			// Calculate whether the point is in the unit cycle
+			if ( int(x * x + y * y) == 0 ) {
+				++ pSums[idx];
+			}
+		}
+	}
 }
 
 __global__ 
 void reduceCounts (uint64_t * pSums, uint64_t * totals, uint64_t pSumSize, uint64_t reduceSize) {
 	//	Insert code here
+	int idx = threadIdx.x + blockDim.x * blockIdx.x;
+	uint64_t reduceThreadCount = pSumSize/reduceSize;
+	if(idx < reduceThreadCount){
+		totals[idx] = 0;
+		for(uint64_t i = 0; i < reduceSize; i++){
+			if((idx*reduceSize + i) < pSumSize)
+			totals[idx] = totals[idx] + pSums[idx*reduceSize + i];
+		}
+	}
 }
 
 int runGpuMCPi (uint64_t generateThreadCount, uint64_t sampleSize, 
@@ -118,6 +144,37 @@ double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize,
 	//      Insert code here
 	std::cout << "Sneaky, you are ...\n";
 	std::cout << "Compute pi, you must!\n";
+	// Part 1: generatePoints
+	// Set up the thread block
+	dim3 DimGrid(ceil(generateThreadCount/128.0),1,1);
+	dim3 DimBlock(128, 1, 1);
+	// Allocate the memory and invoke the kernels
+	uint64_t pSumSize = generateThreadCount;
+	uint64_t * pSums;
+	cudaMalloc((void **) &pSums, sizeof(uint64_t)*pSumSize);
+	generatePoints<<<DimGrid, DimBlock>>>(pSums, pSumSize, sampleSize);
+	// Part 2: reduceCounts
+	// Set up the thread block
+	dim3 DimGrid2(ceil(reduceThreadCount/128.0),1,1);
+	dim3 DimBlock2(128, 1, 1);
+	// Allocate the memory and invoke the kernels
+	uint64_t * totals_d;
+	uint64_t * totals;
+	cudaMalloc((void **) &totals_d, sizeof(uint64_t)*reduceThreadCount);
+	totals = (uint64_t *) malloc(sizeof(uint64_t)*reduceThreadCount);
+	reduceCounts<<<DimGrid2, DimBlock2>>>(pSums, totals_d, pSumSize, reduceSize);
+	// Sum up the total reduced partial sum and calculate the value of pi
+	cudaMemcpy(totals, totals_d, sizeof(uint64_t)*reduceThreadCount, cudaMemcpyDeviceToHost);
+	uint64_t totalHitCount = 0;
+	for(int i = 0; i < reduceThreadCount; i++){
+		totalHitCount = totalHitCount + totals[i];
+	}
+	approxPi = ((double)totalHitCount / sampleSize) / generateThreadCount;
+	approxPi = approxPi * 4.0f;
+	// Free the memory
+	free(totals);
+	cudaFree(pSums);
+	cudaFree(totals_d);
 	return approxPi;
 }
 
