@@ -24,12 +24,10 @@ void saxpy_gpu (float* x, float* y, float scale, int size) {
 
 int runGpuSaxpy(int vectorSize) {
 
-	std::cout << "Hello GPU Saxpy!\n";
+	// std::cout << "Hello GPU Saxpy!\n";
 
 	//	Insert code here
-	std::cout << "Lazy, you are!\n";
-	std::cout << "Write code, you must\n";
-	device_prop();
+	// device_prop();
 	int vectorByte = vectorSize * sizeof(float);
 	// Set up the thread block
 	dim3 DimGrid(ceil(vectorSize/128.0),1,1);
@@ -142,8 +140,6 @@ double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize,
 	double approxPi = 0;
 
 	//      Insert code here
-	std::cout << "Sneaky, you are ...\n";
-	std::cout << "Compute pi, you must!\n";
 	// Part 1: generatePoints
 	// Set up the thread block
 	dim3 DimGrid(ceil(generateThreadCount/128.0),1,1);
@@ -153,6 +149,7 @@ double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize,
 	uint64_t * pSums;
 	cudaMalloc((void **) &pSums, sizeof(uint64_t)*pSumSize);
 	generatePoints<<<DimGrid, DimBlock>>>(pSums, pSumSize, sampleSize);
+	cudaDeviceSynchronize();
 	// Part 2: reduceCounts
 	// Set up the thread block
 	dim3 DimGrid2(ceil(reduceThreadCount/128.0),1,1);
