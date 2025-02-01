@@ -47,6 +47,7 @@ int runGpuSaxpy(int vectorSize) {
 	cudaMemcpy(y_d, y, vectorByte, cudaMemcpyHostToDevice);
 	// Kernel invocation code
 	saxpy_gpu<<<DimGrid, DimBlock>>>(x_d, y_d, scale, vectorSize);
+	cudaDeviceSynchronize();
 	// Check the result with CPU
 	cudaMemcpy(veri, y_d, vectorByte, cudaMemcpyDeviceToHost);
 	int errorCount = verifyVector(x, y, veri, scale, vectorSize);
